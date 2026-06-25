@@ -1,24 +1,44 @@
 import { METERS_PER_UNIT } from './seoulGeo.js';
 
-const ENDPOINT = 'https://overpass-api.de/api/interpreter';
+// Overpass mirrors — rotated across retries to dodge a single server's rate limit.
+const ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
 
 const METERS_PER_FLOOR = 3.2;   // average storey height
 const VERT_EXAG        = 10;    // strong artistic exaggeration so buildings tower like a toy city
 const MAX_HEIGHT_M     = 260;   // clamp absurd/erroneous values (Lotte Tower ≈ 555 m → capped)
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 // Fetch all building polygons within a geo bbox.
+// Retries with backoff + endpoint rotation so a transient 429/timeout doesn't
+// leave the chunk permanently empty.
 // Returns [{coords:[{lat,lon}], height, type}]
-export async function fetchBuildingsForChunk(bbox) {
+export async function fetchBuildingsForChunk(bbox, attempt = 0) {
   const { S, N, W, E } = bbox;
   const bstr = `${S.toFixed(6)},${W.toFixed(6)},${N.toFixed(6)},${E.toFixed(6)}`;
 
   const query = `[out:json][timeout:30][bbox:${bstr}];way[building];out body;>;out skel qt;`;
+  const endpoint = ENDPOINTS[attempt % ENDPOINTS.length];
 
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(query),
-  });
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(query),
+    });
+  } catch (err) {
+    if (attempt < 4) { await sleep(700 * (attempt + 1)); return fetchBuildingsForChunk(bbox, attempt + 1); }
+    throw err;
+  }
+  // 429 (rate limited) / 504 / 503 are transient — back off and retry.
+  if ([429, 502, 503, 504].includes(res.status)) {
+    if (attempt < 4) { await sleep(900 * (attempt + 1)); return fetchBuildingsForChunk(bbox, attempt + 1); }
+    throw new Error(`HTTP ${res.status}`);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
 

@@ -4,9 +4,10 @@ import { fetchBuildingsForChunk } from './buildingFetch.js';
 import { createChunkMesh } from './buildingRender.js';
 
 const LOD_DIST      = 48;   // camera distance to orbit target that activates LOD
-const MAX_PARALLEL  = 3;    // max concurrent Overpass requests
-const MAX_CACHED    = 40;   // max chunks to keep in memory
-const LOD_RADIUS    = 2;    // chunks loaded around the target → (2*2+1)² = 5×5
+const MAX_PARALLEL  = 2;    // max concurrent Overpass requests (keep low to avoid 429)
+const MAX_CACHED    = 24;   // max chunks to keep in memory
+const LOD_RADIUS    = 1;    // chunks loaded around the target → (1*2+1)² = 3×3
+const RETRY_COOLDOWN = 5000;// ms to wait before retrying a failed chunk
 
 const TOTAL_CC = Math.ceil(GW / CHUNK_W);
 const TOTAL_CR = Math.ceil(GH / CHUNK_H);
@@ -51,6 +52,7 @@ export class LodManager {
     this.active       = new Map();    // chunkId → THREE.Group (building mesh)
     this.loading      = new Set();    // chunkId being fetched
     this.lruOrder     = [];           // for eviction
+    this.cooldown     = new Map();    // chunkId → earliest retry time (ms)
     this.wasLod       = false;
   }
 
@@ -83,11 +85,13 @@ export class LodManager {
       }
     }
 
-    // Load missing chunks (respect MAX_PARALLEL)
+    // Load missing chunks (respect MAX_PARALLEL and per-chunk retry cooldown)
+    const now = performance.now();
     for (const id of want) {
-      if (!this.active.has(id) && !this.loading.has(id) && this.loading.size < MAX_PARALLEL) {
-        this._load(id);
-      }
+      if (this.active.has(id) || this.loading.has(id)) continue;
+      if ((this.cooldown.get(id) || 0) > now) continue;       // still cooling down after a failure
+      if (this.loading.size >= MAX_PARALLEL) break;
+      this._load(id);
     }
 
     // Evict chunks no longer wanted
@@ -121,10 +125,11 @@ export class LodManager {
       if (mesh) this.scene.add(mesh);
       this.active.set(id, mesh);
       this.lruOrder.push(id);
+      this.cooldown.delete(id);
     } catch (err) {
-      console.warn('[LOD] chunk load failed:', id, err.message);
-      // Mark as attempted so we don't retry immediately
-      this.active.set(id, null);
+      console.warn('[LOD] chunk load failed (will retry):', id, err.message);
+      // Don't mark active — leave the overview tiles up and retry after a cooldown.
+      this.cooldown.set(id, performance.now() + RETRY_COOLDOWN);
     } finally {
       this.loading.delete(id);
     }
