@@ -17,6 +17,13 @@ const TYPE_COLOR = {
 // instead of a noisy carpet of sheds and small houses.
 const MIN_AREA = 0.0004;
 
+// Toy-city chunkiness: fatten each footprint and keep a minimum height so
+// buildings read as solid blocks; cap height vs. width so nothing turns into
+// a needle.
+const INFLATE     = 1.2;
+const MIN_HEIGHT  = 0.08;
+const MAX_ASPECT  = 8;   // height ≤ shortest footprint side × this
+
 const _c = new THREE.Color();
 const _hsl = { h: 0, s: 0, l: 0 };
 
@@ -66,14 +73,29 @@ export function createChunkMesh(buildings) {
 // Convert an OSM building polygon + height into an ExtrudeGeometry in world
 // space, tinted with a per-building variation of its category colour.
 function extrudedBuilding(coords, height, baseHex) {
-  const pts = coords.map(c => geoToWorld(c.lon, c.lat));
+  let pts = coords.map(c => geoToWorld(c.lon, c.lat));
 
-  // Polygon area (shoelace) — skip tiny structures.
+  // Polygon area (shoelace) on the true footprint — skip tiny structures.
   let area2 = 0;
   for (let i = 0; i < pts.length - 1; i++) {
     area2 += pts[i].x * pts[i + 1].z - pts[i + 1].x * pts[i].z;
   }
   if (Math.abs(area2) / 2 < MIN_AREA) return null;
+
+  // Fatten the footprint around its centroid for a chunky toy look.
+  let cx = 0, cz = 0;
+  for (const p of pts) { cx += p.x; cz += p.z; }
+  cx /= pts.length; cz /= pts.length;
+  pts = pts.map(p => ({ x: cx + (p.x - cx) * INFLATE, z: cz + (p.z - cz) * INFLATE }));
+
+  // Clamp height: never paper-flat, never a needle relative to its footprint.
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+  }
+  const minSide = Math.max(0.04, Math.min(maxX - minX, maxZ - minZ));
+  const h = Math.min(Math.max(height, MIN_HEIGHT), minSide * MAX_ASPECT);
 
   // Shape is defined in XY plane (using world X and -Z so rotation maps correctly)
   const shape = new THREE.Shape();
@@ -82,7 +104,7 @@ function extrudedBuilding(coords, height, baseHex) {
 
   let geo;
   try {
-    geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+    geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
     // Rotate -90° around X: XY shape → XZ ground plane, +Z extrusion → +Y world up
     geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
   } catch {

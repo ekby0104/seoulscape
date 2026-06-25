@@ -3,7 +3,7 @@ import { METERS_PER_UNIT } from './seoulGeo.js';
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
 
 const METERS_PER_FLOOR = 3.2;   // average storey height
-const VERT_EXAG        = 4.2;   // artistic exaggeration so buildings read clearly when zoomed in
+const VERT_EXAG        = 6.5;   // artistic exaggeration so buildings read clearly when zoomed in
 const MAX_HEIGHT_M     = 260;   // clamp absurd/erroneous values (Lotte Tower ≈ 555 m → capped)
 
 // Fetch all building polygons within a geo bbox.

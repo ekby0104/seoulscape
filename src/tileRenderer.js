@@ -4,9 +4,9 @@ import { LANDMARKS } from './seoulData.js';
 
 const TILE_DEF = [
   null,
-  { color: 0x4ec9b0, minH: 0.25, maxH: 0.75, castShadow: true  }, // 1 res
-  { color: 0xff9d54, minH: 0.45, maxH: 1.40, castShadow: true  }, // 2 com
-  { color: 0x539bf5, minH: 0.90, maxH: 2.80, castShadow: true  }, // 3 off
+  { color: 0x4ec9b0, minH: 0.20, maxH: 0.55, castShadow: true  }, // 1 res
+  { color: 0xff9d54, minH: 0.35, maxH: 1.00, castShadow: true  }, // 2 com
+  { color: 0x539bf5, minH: 0.60, maxH: 1.80, castShadow: true  }, // 3 off
   { color: 0x57c057, minH: 0.04, maxH: 0.04, castShadow: false }, // 4 park
   { color: 0x2f7bbf, minH: 0.06, maxH: 0.06, castShadow: false }, // 5 water
   { color: 0xb8cfc0, minH: 0.07, maxH: 0.18, castShadow: false }, // 6 fill (unclassified Seoul)
