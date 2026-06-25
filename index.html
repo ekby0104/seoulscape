@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>서울 시티빌더</title>
+  <script type="module" crossorigin src="./assets/index-C0cvmGiO.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CbtKq0bs.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="loading">서울을 불러오는 중…</div>
+
+<div id="hud">
+  <div class="stat day"><div class="v" id="s-day">1일차</div><div class="l">DAY</div></div>
+  <div class="stat"><div class="v" id="s-pop">0</div><div class="l">인구</div></div>
+  <div class="stat money"><div class="v" id="s-money">₩50,000</div><div class="l">자금</div></div>
+  <div class="stat"><div class="v" id="s-emp">0%</div><div class="l">고용</div></div>
+  <div class="stat"><div class="v" id="s-hap">75%</div><div class="l">행복</div></div>
+  <div class="stat"><div class="v" id="s-bld">0</div><div class="l">건물</div></div>
+  <div class="stat sub"><div class="v" id="s-sta">0</div><div class="l">지하철역</div></div>
+  <div class="stat"><div class="v" id="s-fps">60</div><div class="l">FPS</div></div>
+</div>
+
+<div id="speed">
+  <button data-sp="0" id="sp-pause">❚❚</button>
+  <button data-sp="1" class="on">1×</button>
+  <button data-sp="3">3×</button>
+  <button data-sp="10">10×</button>
+</div>
+
+<div id="hint">드래그=시점이동 · 휠/두 손가락=확대 · 도구 선택 후 <b>탭</b>=건설 · 🚇역세권은 주변을 빠르게 성장시켜요</div>
+
+<div id="palette"></div>
+
+</body>
+</html>
