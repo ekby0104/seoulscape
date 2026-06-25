@@ -120,9 +120,12 @@ export class LodManager {
     try {
       const buildings = await fetchBuildingsForChunk(chunkBbox(cc, cr));
       const mesh = createChunkMesh(buildings);
-      // Hide overview tiles for this chunk and show buildings
-      toggleOverview(this.instanceMap, this.meshes, id, false);
-      if (mesh) this.scene.add(mesh);
+      // Only hide overview tiles when we actually have a building mesh to show.
+      // If mesh is null (empty area), keep the overview tiles visible.
+      if (mesh) {
+        toggleOverview(this.instanceMap, this.meshes, id, false);
+        this.scene.add(mesh);
+      }
       this.active.set(id, mesh);
       this.lruOrder.push(id);
       this.cooldown.delete(id);

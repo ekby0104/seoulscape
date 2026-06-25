@@ -4,12 +4,12 @@ import { LANDMARKS } from './seoulData.js';
 
 const TILE_DEF = [
   null,
-  { color: 0x4ec9b0, minH: 0.20, maxH: 0.55, castShadow: true  }, // 1 res
-  { color: 0xff9d54, minH: 0.35, maxH: 1.00, castShadow: true  }, // 2 com
-  { color: 0x539bf5, minH: 0.60, maxH: 1.80, castShadow: true  }, // 3 off
-  { color: 0x57c057, minH: 0.04, maxH: 0.04, castShadow: false }, // 4 park
-  { color: 0x2f7bbf, minH: 0.06, maxH: 0.06, castShadow: false }, // 5 water
-  { color: 0xb8cfc0, minH: 0.07, maxH: 0.18, castShadow: false }, // 6 fill (unclassified Seoul)
+  { color: 0x4ec9b0, minH: 0.8,  maxH: 2.8,  castShadow: true  }, // 1 res  - teal
+  { color: 0xff9d54, minH: 1.4,  maxH: 4.5,  castShadow: true  }, // 2 com  - orange
+  { color: 0x539bf5, minH: 2.2,  maxH: 7.5,  castShadow: true  }, // 3 off  - blue
+  { color: 0x57c057, minH: 0.08, maxH: 0.08, castShadow: false }, // 4 park - flat green
+  { color: 0x2f7bbf, minH: 0.10, maxH: 0.10, castShadow: false }, // 5 water - flat blue
+  { color: 0xe8a855, minH: 0.6,  maxH: 2.2,  castShadow: true  }, // 6 fill - warm amber (clearly distinct from island grass)
 ];
 
 function hash(col, row) {
