@@ -8,6 +8,12 @@ export const GH = 132;
 // Half TILE keeps the world the same physical size as the 90×66 grid
 export const TILE = 0.5;
 
+// Real-world meters per world unit (averaged over lon/lat). Used so building
+// heights share the same scale as their footprints instead of being needles.
+//   lon: (E-W)*~88800 m/deg / (GW*TILE) ≈ 443 m/unit
+//   lat: (N-S)*111000 m/deg / (GH*TILE) ≈ 507 m/unit
+export const METERS_PER_UNIT = 470;
+
 // Convert longitude/latitude → floating-point grid position (for scanline rasterizer)
 export function lonLatToGrid(lon, lat) {
   return {

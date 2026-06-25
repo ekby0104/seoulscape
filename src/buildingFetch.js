@@ -1,4 +1,10 @@
+import { METERS_PER_UNIT } from './seoulGeo.js';
+
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
+
+const METERS_PER_FLOOR = 3.2;   // average storey height
+const VERT_EXAG        = 2.6;   // gentle artistic exaggeration so the city reads as 3D
+const MAX_HEIGHT_M     = 260;   // clamp absurd/erroneous values (Lotte Tower ≈ 555 m → capped)
 
 // Fetch all building polygons within a geo bbox.
 // Returns [{coords:[{lat,lon}], height, type}]
@@ -34,13 +40,27 @@ export async function fetchBuildingsForChunk(bbox) {
     const lon = coords.reduce((s, c) => s + c.lon, 0) / coords.length;
     if (lat < S || lat > N || lon < W || lon > E) continue;
 
-    const levels = parseInt(el.tags['building:levels']) || defaultLevels(el.tags.building);
-    const height = Math.min(levels, 60) * 0.14;
+    const meters = buildingHeightMeters(el.tags);
+    // Convert real meters → world units at the same scale as the footprint,
+    // with a mild exaggeration so towers still feel tall but never needle-like.
+    const height = (meters / METERS_PER_UNIT) * VERT_EXAG;
 
     buildings.push({ coords, height, type: buildingType(el.tags.building) });
   }
 
   return buildings;
+}
+
+// Resolve a building's real-world height in meters from OSM tags.
+// Priority: explicit height tag → building:levels → per-type default.
+function buildingHeightMeters(tags) {
+  const h = parseFloat(tags.height); // OSM "height" is in metres
+  if (!isNaN(h) && h > 0) return Math.min(h, MAX_HEIGHT_M);
+
+  let levels = parseInt(tags['building:levels'], 10);
+  if (isNaN(levels) || levels <= 0) levels = defaultLevels(tags.building);
+  levels = Math.min(levels, 80);
+  return Math.min(levels * METERS_PER_FLOOR, MAX_HEIGHT_M);
 }
 
 function defaultLevels(b) {
