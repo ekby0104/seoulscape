@@ -1,8 +1,9 @@
 import './style.css';
 import { initScene } from './scene.js';
 import { fetchSeoulData, fetchSeoulBoundary } from './overpass.js';
-import { buildGrid, buildBoundaryMask } from './gridBuilder.js';
-import { renderGrid, renderBoundary } from './tileRenderer.js';
+import { buildGrid, buildBoundaryMask, stampRiver } from './gridBuilder.js';
+import { renderGrid, renderBoundary, renderLandmarks } from './tileRenderer.js';
+import { SEOUL_FALLBACK_RING, HAN_RIVER } from './seoulData.js';
 import { LodManager } from './lod.js';
 
 const barEl  = document.getElementById('loading-bar');
@@ -31,11 +32,20 @@ async function init() {
     return;
   }
 
+  // Boundary fetch can fail or return an incomplete ring → fall back to the
+  // hardcoded Seoul silhouette so the city never renders as a bare rectangle.
+  if (!boundaryRing || boundaryRing.length < 3) {
+    boundaryRing = SEOUL_FALLBACK_RING;
+  }
+
   setProgress(50, `폴리곤 ${ways.length.toLocaleString()}개 래스터화 중…`);
   const mask = await buildBoundaryMask(boundaryRing);
   const grid = await buildGrid(ways, (p) =>
     setProgress(50 + p * 36, '격자 분석 중…')
   );
+
+  // Always paint the Han River so it's visible for orientation on first load.
+  stampRiver(grid, mask, HAN_RIVER);
 
   // Fill every Seoul cell that has no landuse classification with type 6 (default urban)
   for (let i = 0; i < grid.length; i++) {
@@ -45,6 +55,7 @@ async function init() {
   setProgress(86, '3D 오브젝트 생성 중…');
   renderBoundary(scene, boundaryRing);
   const { meshes, instanceMap } = renderGrid(scene, grid, mask);
+  renderLandmarks(scene);
 
   setProgress(100, '완료 — 줌인하면 실제 건물이 로드됩니다');
   const loadEl = document.getElementById('loading');

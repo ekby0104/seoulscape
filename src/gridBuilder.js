@@ -2,6 +2,33 @@ import { GW, GH, lonLatToGrid } from './seoulGeo.js';
 
 const TYPE_CODE = { res: 1, com: 2, off: 3, park: 4, water: 5 };
 
+// ── Han River stamp ───────────────────────────────────────────────────────────
+// Paints a thick water stroke along a centerline so the river is always visible.
+// Also sets the mask so the stamped cells render even if outside the boundary fill.
+export function stampRiver(grid, mask, centerline, halfWidth = 1.7) {
+  const pts = centerline.map(c => lonLatToGrid(c.lon, c.lat));
+  const r = Math.ceil(halfWidth);
+  for (let s = 0; s < pts.length - 1; s++) {
+    const a = pts[s], b = pts[s + 1];
+    const dist = Math.hypot(b.col - a.col, b.row - a.row);
+    const steps = Math.max(1, Math.ceil(dist * 2));
+    for (let t = 0; t <= steps; t++) {
+      const cc = a.col + ((b.col - a.col) * t) / steps;
+      const cr = a.row + ((b.row - a.row) * t) / steps;
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          if (dc * dc + dr * dr > halfWidth * halfWidth) continue;
+          const col = Math.round(cc + dc), row = Math.round(cr + dr);
+          if (col < 0 || col >= GW || row < 0 || row >= GH) continue;
+          const idx = row * GW + col;
+          grid[idx] = 5;       // water
+          if (mask) mask[idx] = 1;
+        }
+      }
+    }
+  }
+}
+
 // ── Scanline polygon fill ─────────────────────────────────────────────────────
 function scanFill(target, typeCode, pts, minValue = 0) {
   let minRow = GH, maxRow = 0;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GW, GH, TILE, CHUNK_W, CHUNK_H, toWorld, geoToWorld } from './seoulGeo.js';
+import { LANDMARKS } from './seoulData.js';
 
 const TILE_DEF = [
   null,
@@ -36,6 +37,66 @@ export function renderBoundary(scene, ring) {
   mesh.position.y = 0.008;
   mesh.receiveShadow = true;
   scene.add(mesh);
+}
+
+// Build a floating text label as a sprite (canvas texture).
+function makeLabelSprite(text) {
+  const fontSize = 52;
+  const pad = 22;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `bold ${fontSize}px "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+  const textW = ctx.measureText(text).width;
+  canvas.width = textW + pad * 2;
+  canvas.height = fontSize + pad * 2;
+  // canvas resize clears the context — set the font again
+  ctx.font = `bold ${fontSize}px "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+  ctx.fillStyle = 'rgba(20,24,34,0.78)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, pad, canvas.height / 2 + 2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true })
+  );
+  const scale = 4.5;
+  sprite.scale.set((canvas.width / canvas.height) * scale, scale, 1);
+  return sprite;
+}
+
+// Render landmark markers (pin pole + ball + name label) for orientation.
+export function renderLandmarks(scene) {
+  const group = new THREE.Group();
+  for (const lm of LANDMARKS) {
+    const { x, z } = geoToWorld(lm.lon, lm.lat);
+    const poleH = lm.h * 1.5 + 3; // tall enough to rise above buildings
+    const mat = new THREE.MeshStandardMaterial({
+      color: lm.color,
+      emissive: lm.color,
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
+
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, poleH, 10), mat);
+    pole.position.set(x, poleH / 2, z);
+    pole.castShadow = true;
+    group.add(pole);
+
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 18), mat);
+    ball.position.set(x, poleH + 0.6, z);
+    ball.castShadow = true;
+    group.add(ball);
+
+    const label = makeLabelSprite(lm.name);
+    label.position.set(x, poleH + 2.6, z);
+    group.add(label);
+  }
+  scene.add(group);
+  return group;
 }
 
 // Render landuse grid as InstancedMesh.
