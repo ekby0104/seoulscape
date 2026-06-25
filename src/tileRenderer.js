@@ -8,6 +8,7 @@ const TILE_DEF = [
   { color: 0x539bf5, minH: 0.90, maxH: 2.80, castShadow: true  }, // 3 off
   { color: 0x57c057, minH: 0.04, maxH: 0.04, castShadow: false }, // 4 park
   { color: 0x2f7bbf, minH: 0.06, maxH: 0.06, castShadow: false }, // 5 water
+  { color: 0xb8cfc0, minH: 0.07, maxH: 0.18, castShadow: false }, // 6 fill (unclassified Seoul)
 ];
 
 function hash(col, row) {
@@ -20,10 +21,12 @@ export function renderBoundary(scene, ring) {
   if (!ring || ring.length < 3) return;
   const shape = new THREE.Shape();
   const p0 = geoToWorld(ring[0].lon, ring[0].lat);
-  shape.moveTo(p0.x, p0.z);
+  // Negate z: ShapeGeometry is in local XY; after rotation.x=-π/2,
+  // local Y maps to world -Z, so passing -worldZ restores the correct orientation.
+  shape.moveTo(p0.x, -p0.z);
   for (let i = 1; i < ring.length; i++) {
     const p = geoToWorld(ring[i].lon, ring[i].lat);
-    shape.lineTo(p.x, p.z);
+    shape.lineTo(p.x, -p.z);
   }
   const mesh = new THREE.Mesh(
     new THREE.ShapeGeometry(shape),
@@ -45,9 +48,9 @@ export function renderGrid(scene, grid, mask) {
   }
 
   const geom = new THREE.BoxGeometry(TILE * 0.88, 1, TILE * 0.88);
-  const imSlots = [];   // [{im: InstancedMesh, idx: 0}|null] × 5
+  const imSlots = [];   // [{im: InstancedMesh, idx: 0}|null] × 6
   const imRefs  = [];   // just the InstancedMesh (or null) for external use
-  for (let t = 1; t <= 5; t++) {
+  for (let t = 1; t <= 6; t++) {
     if (!counts[t]) { imSlots.push(null); imRefs.push(null); continue; }
     const def = TILE_DEF[t];
     const im = new THREE.InstancedMesh(

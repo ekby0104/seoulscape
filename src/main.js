@@ -37,6 +37,11 @@ async function init() {
     setProgress(50 + p * 36, '격자 분석 중…')
   );
 
+  // Fill every Seoul cell that has no landuse classification with type 6 (default urban)
+  for (let i = 0; i < grid.length; i++) {
+    if (mask[i] && grid[i] === 0) grid[i] = 6;
+  }
+
   setProgress(86, '3D 오브젝트 생성 중…');
   renderBoundary(scene, boundaryRing);
   const { meshes, instanceMap } = renderGrid(scene, grid, mask);
