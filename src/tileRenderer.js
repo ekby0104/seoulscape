@@ -17,24 +17,32 @@ function hash(col, row) {
   return v - Math.floor(v);
 }
 
-// Render the Seoul boundary as a filled shape (city silhouette)
+// Render the Seoul boundary as an extruded slab — a floating "island" whose
+// top surface is the land and whose sides give it a cute bit of thickness.
 export function renderBoundary(scene, ring) {
   if (!ring || ring.length < 3) return;
   const shape = new THREE.Shape();
   const p0 = geoToWorld(ring[0].lon, ring[0].lat);
-  // Negate z: ShapeGeometry is in local XY; after rotation.x=-π/2,
-  // local Y maps to world -Z, so passing -worldZ restores the correct orientation.
+  // Negate z: shape is in local XY; after the rotation below local Y maps to
+  // world -Z, so passing -worldZ restores the correct orientation.
   shape.moveTo(p0.x, -p0.z);
   for (let i = 1; i < ring.length; i++) {
     const p = geoToWorld(ring[i].lon, ring[i].lat);
     shape.lineTo(p.x, -p.z);
   }
-  const mesh = new THREE.Mesh(
-    new THREE.ShapeGeometry(shape),
-    new THREE.MeshStandardMaterial({ color: 0x8b9e6a, roughness: 1 })
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = 0.008;
+
+  const depth = 2.2;
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  // Rotate flat → horizontal; then drop so the top surface sits at y=0.
+  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+  geo.translate(0, -depth, 0);
+
+  // ExtrudeGeometry assigns material index 0 to the caps (top/bottom) and
+  // index 1 to the side walls.
+  const cap  = new THREE.MeshStandardMaterial({ color: 0x8fae74, roughness: 1 }); // grass top
+  const side = new THREE.MeshStandardMaterial({ color: 0x9c8366, roughness: 1 }); // soil sides
+  const mesh = new THREE.Mesh(geo, [cap, side]);
+  mesh.position.y = 0;
   mesh.receiveShadow = true;
   scene.add(mesh);
 }

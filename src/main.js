@@ -4,7 +4,25 @@ import { fetchSeoulData, fetchSeoulBoundary } from './overpass.js';
 import { buildGrid, buildBoundaryMask, stampRiver } from './gridBuilder.js';
 import { renderGrid, renderBoundary, renderLandmarks } from './tileRenderer.js';
 import { SEOUL_FALLBACK_RING, HAN_RIVER } from './seoulData.js';
+import { BBOX } from './seoulGeo.js';
 import { LodManager } from './lod.js';
+
+// A valid Seoul boundary must span most of the bounding box. The Overpass
+// stitch sometimes returns a broken ring covering only part of the city —
+// reject those and use the hardcoded silhouette instead.
+function ringCoversSeoul(ring) {
+  if (!ring || ring.length < 8) return false;
+  let minLat = 99, maxLat = -99, minLon = 999, maxLon = -999;
+  for (const p of ring) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  const latSpan = (maxLat - minLat) / (BBOX.N - BBOX.S);
+  const lonSpan = (maxLon - minLon) / (BBOX.E - BBOX.W);
+  return latSpan > 0.85 && lonSpan > 0.85;
+}
 
 const barEl  = document.getElementById('loading-bar');
 const stepEl = document.getElementById('loading-step');
@@ -20,21 +38,28 @@ async function init() {
 
   setProgress(6, 'OpenStreetMap 연결 중 (경계 + 지도 데이터 병렬 로드)…');
 
-  let boundaryRing, ways;
-  try {
-    [boundaryRing, ways] = await Promise.all([
+  // Boundary and map data are fetched independently and neither is fatal:
+  // if a request fails we still render the fallback Seoul island + river +
+  // landmarks so the user always sees a recognizable city.
+  // (?demo skips the network for offline/local previews.)
+  const demo = location.search.includes('demo');
+  let boundaryRing = [], ways = [];
+  if (!demo) {
+    const [boundaryRes, waysRes] = await Promise.allSettled([
       fetchSeoulBoundary((msg) => { stepEl.textContent = msg; }),
       fetchSeoulData((pct, msg) => setProgress(6 + pct * 0.44, msg)),
     ]);
-  } catch (err) {
-    stepEl.textContent = '⚠ ' + err.message + ' — 새로고침 후 다시 시도해 주세요.';
-    barEl.style.background = '#f85149';
-    return;
+    boundaryRing = boundaryRes.status === 'fulfilled' ? boundaryRes.value : [];
+    ways = waysRes.status === 'fulfilled' ? waysRes.value : [];
+    if (waysRes.status === 'rejected') {
+      console.warn('지도 데이터 로드 실패, 기본 형태로 표시:', waysRes.reason?.message);
+      stepEl.textContent = '지도 데이터 일부 생략 — 기본 서울 형태로 표시합니다…';
+    }
   }
 
-  // Boundary fetch can fail or return an incomplete ring → fall back to the
-  // hardcoded Seoul silhouette so the city never renders as a bare rectangle.
-  if (!boundaryRing || boundaryRing.length < 3) {
+  // Boundary fetch can fail or return an incomplete/broken ring → fall back to
+  // the hardcoded Seoul silhouette so the city always shows its full shape.
+  if (!ringCoversSeoul(boundaryRing)) {
     boundaryRing = SEOUL_FALLBACK_RING;
   }
 

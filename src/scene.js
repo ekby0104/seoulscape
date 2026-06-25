@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GW, GH, TILE } from './seoulGeo.js';
 
 export function initScene() {
   const scene = new THREE.Scene();
@@ -9,8 +8,8 @@ export function initScene() {
 
   const aspect = innerWidth / innerHeight;
   const camera = new THREE.PerspectiveCamera(48, aspect, 0.5, 500);
-  // Positioned to see the full 90×66 grid from a bird's-eye angle
-  camera.position.set(0, 90, 105);
+  // Positioned to frame the full Seoul island from a bird's-eye angle
+  camera.position.set(0, 78, 92);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(innerWidth, innerHeight);
@@ -34,15 +33,8 @@ export function initScene() {
   sun.shadow.camera.far    = 250;
   scene.add(sun);
 
-  // Ground plane (outside-Seoul color — Seoul shape rendered on top by tileRenderer)
-  const gw = GW * TILE, gh = GH * TILE;
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(gw, gh),
-    new THREE.MeshStandardMaterial({ color: 0x9db4c4, roughness: 1 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // No big ground plane — Seoul is rendered as a floating island (extruded
+  // boundary slab) by tileRenderer, sitting on the sky-blue background.
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
