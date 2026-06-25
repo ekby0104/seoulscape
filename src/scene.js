@@ -34,11 +34,11 @@ export function initScene() {
   sun.shadow.camera.far    = 250;
   scene.add(sun);
 
-  // Ground plane covering full grid
+  // Ground plane (outside-Seoul color — Seoul shape rendered on top by tileRenderer)
   const gw = GW * TILE, gh = GH * TILE;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(gw, gh),
-    new THREE.MeshStandardMaterial({ color: 0x8b9e6a, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0x9db4c4, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;

@@ -1,12 +1,12 @@
 // Seoul WGS-84 bounding box
 export const BBOX = { S: 37.4133, W: 126.7342, N: 37.7151, E: 127.1832 };
 
-// Grid dimensions: columns (W→E) × rows (N→S)
-export const GW = 90;
-export const GH = 66;
+// Grid dimensions: columns (W→E) × rows (N→S) — 2× resolution
+export const GW = 180;
+export const GH = 132;
 
-// World-space size of each grid cell (Three.js units)
-export const TILE = 1;
+// Half TILE keeps the world the same physical size as the 90×66 grid
+export const TILE = 0.5;
 
 // Convert longitude/latitude → floating-point grid position (for scanline rasterizer)
 export function lonLatToGrid(lon, lat) {
@@ -29,5 +29,15 @@ export function toWorld(col, row) {
   return {
     x: (col - GW / 2 + 0.5) * TILE,
     z: (row - GH / 2 + 0.5) * TILE,
+  };
+}
+
+// Continuous geo coord → Three.js world position (for boundary polygon, roads, etc.)
+export function geoToWorld(lon, lat) {
+  const col = ((lon - BBOX.W) / (BBOX.E - BBOX.W)) * GW;
+  const row = ((BBOX.N - lat) / (BBOX.N - BBOX.S)) * GH;
+  return {
+    x: (col - GW / 2) * TILE,
+    z: (row - GH / 2) * TILE,
   };
 }
