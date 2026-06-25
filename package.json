@@ -1,0 +1,17 @@
+{
+  "name": "seoulscape",
+  "version": "1.0.0",
+  "description": "서울 시티빌더 — Three.js 기반 3D 도시 건설 시뮬레이션",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
