@@ -3,9 +3,10 @@ import { BBOX, GW, GH, TILE, CHUNK_W, CHUNK_H } from './seoulGeo.js';
 import { fetchBuildingsForChunk } from './buildingFetch.js';
 import { createChunkMesh } from './buildingRender.js';
 
-const LOD_DIST      = 40;   // camera distance to orbit target that activates LOD
-const MAX_PARALLEL  = 2;    // max concurrent Overpass requests
-const MAX_CACHED    = 20;   // max chunks to keep in memory
+const LOD_DIST      = 48;   // camera distance to orbit target that activates LOD
+const MAX_PARALLEL  = 3;    // max concurrent Overpass requests
+const MAX_CACHED    = 40;   // max chunks to keep in memory
+const LOD_RADIUS    = 2;    // chunks loaded around the target → (2*2+1)² = 5×5
 
 const TOTAL_CC = Math.ceil(GW / CHUNK_W);
 const TOTAL_CR = Math.ceil(GH / CHUNK_H);
@@ -73,10 +74,10 @@ export class LodManager {
 
     const { cc, cr } = worldToChunk(target.x, target.z);
 
-    // Determine which chunks should be loaded (3×3 around current)
+    // Determine which chunks should be loaded (square around current target)
     const want = new Set();
-    for (let dc = -1; dc <= 1; dc++) {
-      for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -LOD_RADIUS; dc <= LOD_RADIUS; dc++) {
+      for (let dr = -LOD_RADIUS; dr <= LOD_RADIUS; dr++) {
         const c = cc + dc, r = cr + dr;
         if (c >= 0 && c < TOTAL_CC && r >= 0 && r < TOTAL_CR) want.add(`${c}_${r}`);
       }

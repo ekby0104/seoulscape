@@ -106,25 +106,43 @@ async function init() {
   let fly = null; // active camera tween
   const smooth = (t) => t * t * (3 - 2 * t);
 
+  // Start a camera tween toward `point` at `newDist`, keeping the view angle.
+  function flyTo(point, newDist) {
+    const dist = Math.max(MIN_DIST, Math.min(controls.maxDistance, newDist));
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    fly = {
+      fromCam: camera.position.clone(),
+      toCam:   point.clone().add(dir.multiplyScalar(dist)),
+      fromT:   controls.target.clone(),
+      toT:     point.clone(),
+      start:   performance.now(),
+      dur:     420,
+    };
+    controls.enabled = false;
+  }
+
   renderer.domElement.addEventListener('dblclick', (e) => {
     const rect = renderer.domElement.getBoundingClientRect();
     ndc.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
     ndc.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
     if (!raycaster.ray.intersectPlane(groundPlane, hit)) return;
-
     const curDist = camera.position.distanceTo(controls.target);
-    const newDist = Math.max(MIN_DIST, curDist * 0.5); // 2× closer each click
-    const dir = camera.position.clone().sub(controls.target).normalize();
-    fly = {
-      fromCam: camera.position.clone(),
-      toCam:   hit.clone().add(dir.multiplyScalar(newDist)),
-      fromT:   controls.target.clone(),
-      toT:     hit.clone(),
-      start:   performance.now(),
-      dur:     480,
-    };
-    controls.enabled = false;
+    flyTo(hit, curDist * 0.5); // 2× closer toward the clicked point
+  });
+
+  // ── Zoom +/- buttons and live zoom-level readout ──────────────────────────
+  const INITIAL_DIST = camera.position.distanceTo(controls.target);
+  const zoomInBtn  = document.getElementById('zoom-in');
+  const zoomOutBtn = document.getElementById('zoom-out');
+  const zoomLevel  = document.getElementById('zoom-level');
+  zoomInBtn.addEventListener('click', () => {
+    const d = camera.position.distanceTo(controls.target);
+    flyTo(controls.target, d / 1.6);
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    const d = camera.position.distanceTo(controls.target);
+    flyTo(controls.target, d * 1.6);
   });
 
   (function animate() {
@@ -144,6 +162,11 @@ async function init() {
     const dist = camera.position.distanceTo(controls.target);
     landmarksGroup.visible = dist > PIN_HIDE_DIST;
     lod.update(dist, controls.target);
+
+    // Live zoom readout + enable/disable buttons at the limits.
+    zoomLevel.textContent = '×' + (INITIAL_DIST / dist).toFixed(1);
+    zoomInBtn.disabled  = dist <= MIN_DIST + 0.5;
+    zoomOutBtn.disabled = dist >= controls.maxDistance - 0.5;
 
     renderer.render(scene, camera);
   })();

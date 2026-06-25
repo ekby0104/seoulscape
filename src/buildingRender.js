@@ -13,16 +13,15 @@ const TYPE_COLOR = {
   default: 0xd0c4b4, // warm grey
 };
 
-// Drop tiny structures (~< 90 m²) so the view emphasizes major buildings
-// instead of a noisy carpet of sheds and small houses.
-const MIN_AREA = 0.0004;
+// Drop only truly tiny structures so most real buildings show when zoomed in.
+const MIN_AREA = 0.00015;
 
 // Toy-city chunkiness: fatten each footprint and keep a minimum height so
 // buildings read as solid blocks; cap height vs. width so nothing turns into
 // a needle.
-const INFLATE     = 1.2;
-const MIN_HEIGHT  = 0.08;
-const MAX_ASPECT  = 8;   // height ≤ shortest footprint side × this
+const INFLATE     = 1.3;
+const MIN_HEIGHT  = 0.12;
+const MAX_ASPECT  = 14;  // height ≤ shortest footprint side × this
 
 const _c = new THREE.Color();
 const _hsl = { h: 0, s: 0, l: 0 };
