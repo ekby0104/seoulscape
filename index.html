@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seoulscape — Explore Seoul Neighborhoods</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Seoulscape</h1>
+    <p class="tagline">Discover the soul of Seoul, one neighborhood at a time</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search neighborhoods or tags..."
+        aria-label="Search neighborhoods"
+      />
+      <div class="filter-buttons" id="filter-buttons" role="group" aria-label="Filter by category">
+        <button class="filter-btn active" data-filter="all">All</button>
+      </div>
+    </section>
+
+    <p id="result-count" class="result-count"></p>
+
+    <section class="grid" id="neighborhood-grid" aria-live="polite">
+    </section>
+
+    <p id="empty-state" class="empty-state hidden">
+      No neighborhoods match your search. Try a different keyword.
+    </p>
+  </main>
+
+  <footer>
+    <p>Made with love for Seoul explorers</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
