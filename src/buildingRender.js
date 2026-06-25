@@ -2,27 +2,45 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { geoToWorld } from './seoulGeo.js';
 
+// Base colour per building category. Per-building variation is layered on top
+// via vertex colours so the city looks rich instead of flat blocks of 6 hues.
 const TYPE_COLOR = {
-  res:     0x5bc4b0,
-  com:     0xff9d54,
-  off:     0x5090e0,
-  default: 0xd0c4b4,
+  res:     0x5bc4b0, // teal
+  com:     0xff9d54, // orange
+  off:     0x5090e0, // blue
+  civic:   0xb487e0, // purple (schools / hospitals / public)
+  ind:     0xc9a884, // tan-brown (industrial / warehouse)
+  default: 0xd0c4b4, // warm grey
 };
 
+// Drop tiny structures (~< 90 m²) so the view emphasizes major buildings
+// instead of a noisy carpet of sheds and small houses.
+const MIN_AREA = 0.0004;
+
+const _c = new THREE.Color();
+const _hsl = { h: 0, s: 0, l: 0 };
+
+// Deterministic 0..1 from a seed value.
+function rand(seed) {
+  const v = Math.sin(seed * 91.17) * 43758.5453;
+  return v - Math.floor(v);
+}
+
 // Build a single merged THREE.Group containing all buildings in a chunk.
-// One sub-mesh per building type for consistent color-coding.
+// One sub-mesh per building category; per-building tint via vertex colours.
 export function createChunkMesh(buildings) {
   if (!buildings.length) return null;
 
-  const byType = { res: [], com: [], off: [], default: [] };
+  const byType = { res: [], com: [], off: [], civic: [], ind: [], default: [] };
 
   for (const { coords, height, type } of buildings) {
-    const geo = extrudedBuilding(coords, height);
-    if (geo) byType[type]?.push(geo) ?? byType.default.push(geo);
+    const base = TYPE_COLOR[type] ?? TYPE_COLOR.default;
+    const geo = extrudedBuilding(coords, height, base);
+    if (geo) (byType[type] ?? byType.default).push(geo);
   }
 
   const group = new THREE.Group();
-  for (const [type, geos] of Object.entries(byType)) {
+  for (const geos of Object.values(byType)) {
     if (!geos.length) continue;
     let merged;
     try { merged = mergeGeometries(geos, false); } catch { continue; }
@@ -30,7 +48,12 @@ export function createChunkMesh(buildings) {
     merged.computeVertexNormals();
     const mesh = new THREE.Mesh(
       merged,
-      new THREE.MeshStandardMaterial({ color: TYPE_COLOR[type], roughness: 0.72, side: THREE.DoubleSide })
+      new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        color: 0xffffff,
+        roughness: 0.72,
+        side: THREE.DoubleSide,
+      })
     );
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -40,28 +63,50 @@ export function createChunkMesh(buildings) {
   return group.children.length ? group : null;
 }
 
-// Convert an OSM building polygon + height into an ExtrudeGeometry in world space.
-function extrudedBuilding(coords, height) {
+// Convert an OSM building polygon + height into an ExtrudeGeometry in world
+// space, tinted with a per-building variation of its category colour.
+function extrudedBuilding(coords, height, baseHex) {
   const pts = coords.map(c => geoToWorld(c.lon, c.lat));
 
-  // Filter tiny structures (< ~20 m² real-world area)
+  // Polygon area (shoelace) — skip tiny structures.
   let area2 = 0;
   for (let i = 0; i < pts.length - 1; i++) {
     area2 += pts[i].x * pts[i + 1].z - pts[i + 1].x * pts[i].z;
   }
-  if (Math.abs(area2) / 2 < 0.00008) return null;
+  if (Math.abs(area2) / 2 < MIN_AREA) return null;
 
   // Shape is defined in XY plane (using world X and -Z so rotation maps correctly)
   const shape = new THREE.Shape();
   shape.moveTo(pts[0].x, -pts[0].z);
   for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i].x, -pts[i].z);
 
+  let geo;
   try {
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+    geo = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
     // Rotate -90° around X: XY shape → XZ ground plane, +Z extrusion → +Y world up
     geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
-    return geo;
   } catch {
     return null;
   }
+
+  // Per-building tint: vary brightness/saturation/hue slightly from the base.
+  const seed = pts[0].x * 12.9898 + pts[0].z * 78.233;
+  const v = rand(seed) - 0.5;
+  _c.set(baseHex);
+  _c.getHSL(_hsl);
+  _c.setHSL(
+    (_hsl.h + v * 0.04 + 1) % 1,
+    THREE.MathUtils.clamp(_hsl.s + v * 0.18, 0, 1),
+    THREE.MathUtils.clamp(_hsl.l + v * 0.20, 0.18, 0.86)
+  );
+
+  const n = geo.attributes.position.count;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    colors[i * 3]     = _c.r;
+    colors[i * 3 + 1] = _c.g;
+    colors[i * 3 + 2] = _c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geo;
 }

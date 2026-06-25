@@ -1,4 +1,5 @@
 import './style.css';
+import * as THREE from 'three';
 import { initScene } from './scene.js';
 import { fetchSeoulData, fetchSeoulBoundary } from './overpass.js';
 import { buildGrid, buildBoundaryMask, stampRiver } from './gridBuilder.js';
@@ -80,7 +81,7 @@ async function init() {
   setProgress(86, '3D 오브젝트 생성 중…');
   renderBoundary(scene, boundaryRing);
   const { meshes, instanceMap } = renderGrid(scene, grid, mask);
-  renderLandmarks(scene);
+  const landmarksGroup = renderLandmarks(scene);
 
   setProgress(100, '완료 — 줌인하면 실제 건물이 로드됩니다');
   const loadEl = document.getElementById('loading');
@@ -95,11 +96,53 @@ async function init() {
 
   const lod = new LodManager(scene, meshes, instanceMap);
 
+  // ── Double-click to zoom progressively toward the clicked location ─────────
+  const PIN_HIDE_DIST = 36; // hide landmark pins once we're this close (detail mode)
+  const MIN_DIST      = 4;  // closest the camera may get
+  const raycaster   = new THREE.Raycaster();
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const ndc = new THREE.Vector2();
+  const hit = new THREE.Vector3();
+  let fly = null; // active camera tween
+  const smooth = (t) => t * t * (3 - 2 * t);
+
+  renderer.domElement.addEventListener('dblclick', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    ndc.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    ndc.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    if (!raycaster.ray.intersectPlane(groundPlane, hit)) return;
+
+    const curDist = camera.position.distanceTo(controls.target);
+    const newDist = Math.max(MIN_DIST, curDist * 0.5); // 2× closer each click
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    fly = {
+      fromCam: camera.position.clone(),
+      toCam:   hit.clone().add(dir.multiplyScalar(newDist)),
+      fromT:   controls.target.clone(),
+      toT:     hit.clone(),
+      start:   performance.now(),
+      dur:     480,
+    };
+    controls.enabled = false;
+  });
+
   (function animate() {
     requestAnimationFrame(animate);
-    controls.update();
+
+    if (fly) {
+      const k = Math.min(1, (performance.now() - fly.start) / fly.dur);
+      const e = smooth(k);
+      camera.position.lerpVectors(fly.fromCam, fly.toCam, e);
+      controls.target.lerpVectors(fly.fromT, fly.toT, e);
+      camera.lookAt(controls.target);
+      if (k >= 1) { fly = null; controls.enabled = true; controls.update(); }
+    } else {
+      controls.update();
+    }
 
     const dist = camera.position.distanceTo(controls.target);
+    landmarksGroup.visible = dist > PIN_HIDE_DIST;
     lod.update(dist, controls.target);
 
     renderer.render(scene, camera);

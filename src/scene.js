@@ -40,7 +40,7 @@ export function initScene() {
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.screenSpacePanning = false;
-  controls.minDistance = 15;
+  controls.minDistance = 4;   // allow close-up "street-level" zoom
   controls.maxDistance = 220;
   controls.minPolarAngle = 0.15;
   controls.maxPolarAngle = 1.45;

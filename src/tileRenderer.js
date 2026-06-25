@@ -124,7 +124,8 @@ export function renderGrid(scene, grid, mask) {
     const def = TILE_DEF[t];
     const im = new THREE.InstancedMesh(
       geom,
-      new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.80, metalness: 0.05 }),
+      // color white so the per-instance instanceColor carries the full hue
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.80, metalness: 0.05 }),
       counts[t]
     );
     im.castShadow = def.castShadow;
@@ -136,6 +137,8 @@ export function renderGrid(scene, grid, mask) {
 
   const instanceMap = new Map(); // chunkId → [{meshIdx, instanceIdx, matrix}]
   const dummy = new THREE.Object3D();
+  const tint = new THREE.Color();
+  const hsl = { h: 0, s: 0, l: 0 };
 
   for (let row = 0; row < GH; row++) {
     for (let col = 0; col < GW; col++) {
@@ -156,6 +159,17 @@ export function renderGrid(scene, grid, mask) {
       const iIdx = slot.idx++;
       slot.im.setMatrixAt(iIdx, dummy.matrix);
 
+      // Per-tile colour variation so each district reads as many shades.
+      const vv = hash(row, col) - 0.5;
+      tint.set(def.color);
+      tint.getHSL(hsl);
+      tint.setHSL(
+        (hsl.h + vv * 0.03 + 1) % 1,
+        Math.min(1, Math.max(0, hsl.s + vv * 0.12)),
+        Math.min(0.85, Math.max(0.2, hsl.l + vv * 0.16))
+      );
+      slot.im.setColorAt(iIdx, tint);
+
       const chunkId = `${Math.floor(col / CHUNK_W)}_${Math.floor(row / CHUNK_H)}`;
       if (!instanceMap.has(chunkId)) instanceMap.set(chunkId, []);
       instanceMap.get(chunkId).push({ meshIdx: t - 1, instanceIdx: iIdx, matrix: dummy.matrix.clone() });
@@ -163,7 +177,10 @@ export function renderGrid(scene, grid, mask) {
   }
 
   for (const slot of imSlots) {
-    if (slot) slot.im.instanceMatrix.needsUpdate = true;
+    if (slot) {
+      slot.im.instanceMatrix.needsUpdate = true;
+      if (slot.im.instanceColor) slot.im.instanceColor.needsUpdate = true;
+    }
   }
 
   return { meshes: imRefs, instanceMap };

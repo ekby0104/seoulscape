@@ -3,7 +3,7 @@ import { METERS_PER_UNIT } from './seoulGeo.js';
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
 
 const METERS_PER_FLOOR = 3.2;   // average storey height
-const VERT_EXAG        = 2.6;   // gentle artistic exaggeration so the city reads as 3D
+const VERT_EXAG        = 4.2;   // artistic exaggeration so buildings read clearly when zoomed in
 const MAX_HEIGHT_M     = 260;   // clamp absurd/erroneous values (Lotte Tower ≈ 555 m → capped)
 
 // Fetch all building polygons within a geo bbox.
@@ -77,7 +77,9 @@ function defaultLevels(b) {
 
 function buildingType(b) {
   if (['house', 'detached', 'semidetached_house', 'apartments', 'residential', 'dormitory'].includes(b)) return 'res';
-  if (['commercial', 'retail', 'supermarket', 'shop'].includes(b)) return 'com';
-  if (['office', 'government', 'civic'].includes(b)) return 'off';
+  if (['commercial', 'retail', 'supermarket', 'shop', 'kiosk', 'hotel'].includes(b)) return 'com';
+  if (['office'].includes(b)) return 'off';
+  if (['school', 'university', 'college', 'kindergarten', 'hospital', 'government', 'civic', 'public', 'church', 'temple', 'cathedral'].includes(b)) return 'civic';
+  if (['industrial', 'warehouse', 'factory', 'manufacture', 'storage_tank', 'hangar'].includes(b)) return 'ind';
   return 'default';
 }
