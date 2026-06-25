@@ -32,6 +32,10 @@ export function toWorld(col, row) {
   };
 }
 
+// LOD chunk size in grid cells (each chunk = one Overpass building request)
+export const CHUNK_W = 10; // columns per chunk
+export const CHUNK_H = 10; // rows per chunk
+
 // Continuous geo coord → Three.js world position (for boundary polygon, roads, etc.)
 export function geoToWorld(lon, lat) {
   const col = ((lon - BBOX.W) / (BBOX.E - BBOX.W)) * GW;

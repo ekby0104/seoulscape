@@ -3,6 +3,7 @@ import { initScene } from './scene.js';
 import { fetchSeoulData, fetchSeoulBoundary } from './overpass.js';
 import { buildGrid, buildBoundaryMask } from './gridBuilder.js';
 import { renderGrid, renderBoundary } from './tileRenderer.js';
+import { LodManager } from './lod.js';
 
 const barEl  = document.getElementById('loading-bar');
 const stepEl = document.getElementById('loading-step');
@@ -18,7 +19,6 @@ async function init() {
 
   setProgress(6, 'OpenStreetMap 연결 중 (경계 + 지도 데이터 병렬 로드)…');
 
-  // Fetch boundary and landuse data in parallel
   let boundaryRing, ways;
   try {
     [boundaryRing, ways] = await Promise.all([
@@ -26,24 +26,22 @@ async function init() {
       fetchSeoulData((pct, msg) => setProgress(6 + pct * 0.44, msg)),
     ]);
   } catch (err) {
-    stepEl.textContent = '⚠ ' + err.message + ' — 페이지를 새로고침하거나 잠시 후 다시 시도해 주세요.';
+    stepEl.textContent = '⚠ ' + err.message + ' — 새로고침 후 다시 시도해 주세요.';
     barEl.style.background = '#f85149';
     return;
   }
 
   setProgress(50, `폴리곤 ${ways.length.toLocaleString()}개 래스터화 중…`);
-
-  // Build boundary mask and landuse grid (boundary mask is fast; run sequentially)
   const mask = await buildBoundaryMask(boundaryRing);
   const grid = await buildGrid(ways, (p) =>
     setProgress(50 + p * 36, '격자 분석 중…')
   );
 
   setProgress(86, '3D 오브젝트 생성 중…');
-  renderBoundary(scene, boundaryRing);  // Seoul silhouette (green fill)
-  renderGrid(scene, grid, mask);        // Landuse tiles
+  renderBoundary(scene, boundaryRing);
+  const { meshes, instanceMap } = renderGrid(scene, grid, mask);
 
-  setProgress(100, '완료');
+  setProgress(100, '완료 — 줌인하면 실제 건물이 로드됩니다');
   const loadEl = document.getElementById('loading');
   loadEl.style.opacity = '0';
   setTimeout(() => { loadEl.style.display = 'none'; }, 700);
@@ -54,9 +52,15 @@ async function init() {
     renderer.setSize(innerWidth, innerHeight);
   });
 
+  const lod = new LodManager(scene, meshes, instanceMap);
+
   (function animate() {
     requestAnimationFrame(animate);
     controls.update();
+
+    const dist = camera.position.distanceTo(controls.target);
+    lod.update(dist, controls.target);
+
     renderer.render(scene, camera);
   })();
 }

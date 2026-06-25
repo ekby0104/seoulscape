@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GW, GH, TILE, toWorld, geoToWorld } from './seoulGeo.js';
+import { GW, GH, TILE, CHUNK_W, CHUNK_H, toWorld, geoToWorld } from './seoulGeo.js';
 
 const TILE_DEF = [
   null,
@@ -15,10 +15,9 @@ function hash(col, row) {
   return v - Math.floor(v);
 }
 
-// Render the Seoul boundary as a filled shape (actual city silhouette)
+// Render the Seoul boundary as a filled shape (city silhouette)
 export function renderBoundary(scene, ring) {
   if (!ring || ring.length < 3) return;
-
   const shape = new THREE.Shape();
   const p0 = geoToWorld(ring[0].lon, ring[0].lat);
   shape.moveTo(p0.x, p0.z);
@@ -26,10 +25,8 @@ export function renderBoundary(scene, ring) {
     const p = geoToWorld(ring[i].lon, ring[i].lat);
     shape.lineTo(p.x, p.z);
   }
-
-  const geo = new THREE.ShapeGeometry(shape);
   const mesh = new THREE.Mesh(
-    geo,
+    new THREE.ShapeGeometry(shape),
     new THREE.MeshStandardMaterial({ color: 0x8b9e6a, roughness: 1 })
   );
   mesh.rotation.x = -Math.PI / 2;
@@ -38,10 +35,9 @@ export function renderBoundary(scene, ring) {
   scene.add(mesh);
 }
 
-// Render the 90×66 landuse grid as InstancedMesh tiles.
-// mask: Uint8Array (1=inside Seoul, 0=outside); if null render everything.
+// Render landuse grid as InstancedMesh.
+// Returns { meshes: InstancedMesh[5], instanceMap: Map<chunkId, [{meshIdx, instanceIdx, matrix}]> }
 export function renderGrid(scene, grid, mask) {
-  // Count instances per type (respecting mask)
   const counts = new Int32Array(6);
   for (let i = 0; i < grid.length; i++) {
     if (mask && !mask[i]) continue;
@@ -49,10 +45,10 @@ export function renderGrid(scene, grid, mask) {
   }
 
   const geom = new THREE.BoxGeometry(TILE * 0.88, 1, TILE * 0.88);
-
-  const meshes = [];
+  const imSlots = [];   // [{im: InstancedMesh, idx: 0}|null] × 5
+  const imRefs  = [];   // just the InstancedMesh (or null) for external use
   for (let t = 1; t <= 5; t++) {
-    if (!counts[t]) { meshes.push(null); continue; }
+    if (!counts[t]) { imSlots.push(null); imRefs.push(null); continue; }
     const def = TILE_DEF[t];
     const im = new THREE.InstancedMesh(
       geom,
@@ -62,18 +58,20 @@ export function renderGrid(scene, grid, mask) {
     im.castShadow = def.castShadow;
     im.receiveShadow = true;
     scene.add(im);
-    meshes.push({ im, idx: 0 });
+    imSlots.push({ im, idx: 0 });
+    imRefs.push(im);
   }
 
+  const instanceMap = new Map(); // chunkId → [{meshIdx, instanceIdx, matrix}]
   const dummy = new THREE.Object3D();
 
   for (let row = 0; row < GH; row++) {
     for (let col = 0; col < GW; col++) {
-      const idx = row * GW + col;
-      if (mask && !mask[idx]) continue;
-      const t = grid[idx];
+      const cellIdx = row * GW + col;
+      if (mask && !mask[cellIdx]) continue;
+      const t = grid[cellIdx];
       if (t === 0) continue;
-      const slot = meshes[t - 1];
+      const slot = imSlots[t - 1];
       if (!slot) continue;
 
       const def = TILE_DEF[t];
@@ -82,11 +80,19 @@ export function renderGrid(scene, grid, mask) {
       dummy.position.set(x, h / 2, z);
       dummy.scale.set(1, h, 1);
       dummy.updateMatrix();
-      slot.im.setMatrixAt(slot.idx++, dummy.matrix);
+
+      const iIdx = slot.idx++;
+      slot.im.setMatrixAt(iIdx, dummy.matrix);
+
+      const chunkId = `${Math.floor(col / CHUNK_W)}_${Math.floor(row / CHUNK_H)}`;
+      if (!instanceMap.has(chunkId)) instanceMap.set(chunkId, []);
+      instanceMap.get(chunkId).push({ meshIdx: t - 1, instanceIdx: iIdx, matrix: dummy.matrix.clone() });
     }
   }
 
-  for (const slot of meshes) {
+  for (const slot of imSlots) {
     if (slot) slot.im.instanceMatrix.needsUpdate = true;
   }
+
+  return { meshes: imRefs, instanceMap };
 }
