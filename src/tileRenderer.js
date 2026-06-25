@@ -110,26 +110,36 @@ export function renderLandmarks(scene) {
 // Render landuse grid as InstancedMesh.
 // Returns { meshes: InstancedMesh[5], instanceMap: Map<chunkId, [{meshIdx, instanceIdx, matrix}]> }
 export function renderGrid(scene, grid, mask) {
-  const counts = new Int32Array(6);
+  // Use a plain object (not TypedArray) so index 6 is valid.
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   for (let i = 0; i < grid.length; i++) {
     if (mask && !mask[i]) continue;
-    counts[grid[i]]++;
+    const t = grid[i];
+    if (t >= 1 && t <= 6) counts[t]++;
   }
 
   const geom = new THREE.BoxGeometry(TILE * 0.88, 1, TILE * 0.88);
-  const imSlots = [];   // [{im: InstancedMesh, idx: 0}|null] × 6
+  const imSlots = [];   // [{im: InstancedMesh, idx: 0}|null] × 6  (index = t-1)
   const imRefs  = [];   // just the InstancedMesh (or null) for external use
+  const tint = new THREE.Color();
+  const hsl = { h: 0, s: 0, l: 0 };
+
   for (let t = 1; t <= 6; t++) {
     if (!counts[t]) { imSlots.push(null); imRefs.push(null); continue; }
     const def = TILE_DEF[t];
     const im = new THREE.InstancedMesh(
       geom,
-      // color white so the per-instance instanceColor carries the full hue
+      // White base so instanceColor carries the absolute per-tile hue.
+      // Every instance is pre-filled below so none default to black.
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.80, metalness: 0.05 }),
       counts[t]
     );
     im.castShadow = def.castShadow;
     im.receiveShadow = true;
+    // Pre-fill the entire instanceColor buffer with the base color so any
+    // instance not explicitly overridden still shows its category color.
+    tint.set(def.color);
+    for (let i = 0; i < counts[t]; i++) im.setColorAt(i, tint);
     scene.add(im);
     imSlots.push({ im, idx: 0 });
     imRefs.push(im);
@@ -137,15 +147,13 @@ export function renderGrid(scene, grid, mask) {
 
   const instanceMap = new Map(); // chunkId → [{meshIdx, instanceIdx, matrix}]
   const dummy = new THREE.Object3D();
-  const tint = new THREE.Color();
-  const hsl = { h: 0, s: 0, l: 0 };
 
   for (let row = 0; row < GH; row++) {
     for (let col = 0; col < GW; col++) {
       const cellIdx = row * GW + col;
       if (mask && !mask[cellIdx]) continue;
       const t = grid[cellIdx];
-      if (t === 0) continue;
+      if (t < 1 || t > 6) continue;
       const slot = imSlots[t - 1];
       if (!slot) continue;
 
@@ -159,14 +167,15 @@ export function renderGrid(scene, grid, mask) {
       const iIdx = slot.idx++;
       slot.im.setMatrixAt(iIdx, dummy.matrix);
 
-      // Per-tile colour variation so each district reads as many shades.
+      // Per-tile hue/sat/lightness variation around the category base color.
+      // Material is white so instanceColor = absolute rendered color.
       const vv = hash(row, col) - 0.5;
       tint.set(def.color);
       tint.getHSL(hsl);
       tint.setHSL(
-        (hsl.h + vv * 0.03 + 1) % 1,
-        Math.min(1, Math.max(0, hsl.s + vv * 0.12)),
-        Math.min(0.85, Math.max(0.2, hsl.l + vv * 0.16))
+        (hsl.h + vv * 0.04 + 1) % 1,
+        Math.min(1, Math.max(0, hsl.s + vv * 0.18)),
+        Math.min(0.88, Math.max(0.18, hsl.l + vv * 0.22))
       );
       slot.im.setColorAt(iIdx, tint);
 
@@ -177,10 +186,9 @@ export function renderGrid(scene, grid, mask) {
   }
 
   for (const slot of imSlots) {
-    if (slot) {
-      slot.im.instanceMatrix.needsUpdate = true;
-      if (slot.im.instanceColor) slot.im.instanceColor.needsUpdate = true;
-    }
+    if (!slot) continue;
+    slot.im.instanceMatrix.needsUpdate = true;
+    if (slot.im.instanceColor) slot.im.instanceColor.needsUpdate = true;
   }
 
   return { meshes: imRefs, instanceMap };
